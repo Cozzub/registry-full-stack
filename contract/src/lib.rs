@@ -1,89 +1,25 @@
+mod registry;
+
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::collections::TreeMap;
-use near_sdk::env::{panic_str, state_exists};
+use near_sdk::env::state_exists;
 use near_sdk::serde_json::Value;
-use near_sdk::{near_bindgen, AccountId, PanicOnDefault};
-use serde::{Deserialize, Serialize};
+use near_sdk::{near_bindgen, AccountId};
 
-use uuid::Uuid;
-
-// #[near_bindgen]
-// #[derive(BorshSerialize, BorshDeserialize)]
-// pub struct ColumnCell {
-//     uuid: String,
-//     value: String, //TODO: change to ENUM possible variants
-// }
-
-// #[near_bindgen]
-// #[derive( BorshSerialize, BorshDeserialize)]
-// pub struct Column {
-//     uuid: String,
-//     cells: Vec<ColumnCell>,
-// }
-
-#[near_bindgen]
-#[derive(
-    BorshDeserialize, BorshSerialize, PanicOnDefault, Serialize, Deserialize, Clone, Debug,
-)]
-pub struct HeadCell {
-    uuid: String,
-    value: String,
-}
-
-#[near_bindgen]
-#[derive(
-    BorshDeserialize, BorshSerialize, PanicOnDefault, Serialize, Deserialize, Clone, Debug,
-)]
-pub struct RowCell {
-    uuid: String,
-    value: String,
-}
-#[near_bindgen]
-#[derive(
-    BorshDeserialize, BorshSerialize, PanicOnDefault, Serialize, Deserialize, Clone, Debug,
-)]
-pub struct Row {
-    uuid: String,
-    cells: Vec<RowCell>,
-}
-
-#[near_bindgen]
-#[derive(
-    BorshDeserialize, BorshSerialize, PanicOnDefault, Serialize, Deserialize, Clone, Debug,
-)]
-pub struct Table {
-    uuid: String,
-    name: String,
-    columns: Vec<HeadCell>,
-    rows: Vec<Row>,
-}
-
-#[near_bindgen]
-impl Table {
-    pub fn new(name: String, columns: Vec<HeadCell>, rows: Vec<Row>) -> Self {
-        Self {
-            uuid: Uuid::new_v5(&Uuid::NAMESPACE_DNS, b"some_name").to_string(),
-            name,
-            columns,
-            rows,
-        }
-    }
-}
+use crate::registry::{HeadCell, Registry, RowCell};
 
 // Define the contract structure
 #[near_bindgen]
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct Contract {
     owner: AccountId,
-
-    registries: TreeMap<AccountId, Vec<Table>>,
+    registries: Vec<Registry>,
 }
 
 impl Default for Contract {
     fn default() -> Self {
         Self {
             owner: "alice.near".parse().unwrap(),
-            registries: TreeMap::new(b"t"),
+            registries: Vec::new(),
         }
     }
 }
@@ -96,91 +32,54 @@ impl Contract {
 
         Self {
             owner: owner_id.clone(),
-            registries: TreeMap::new(b"t"),
+            registries: Vec::new(),
         }
     }
 
     pub fn new_registry(
         &mut self,
         owner_id: AccountId,
+        name: String,
         columns: Vec<Value>,
         rows: Vec<Value>,
-        name: String,
     ) {
-        let mut new_columns: Vec<HeadCell> = Vec::new();
-        let mut new_rows: Vec<Row> = Vec::new();
+        let new_columns = columns
+            .iter()
+            .map(|column| HeadCell::from_value(column.clone()))
+            .collect();
 
-        for column in columns {
-            match column {
-                Value::String(s) => {
-                    new_columns.push(HeadCell {
-                        uuid: Uuid::new_v5(&Uuid::NAMESPACE_DNS, format!("{name}_{s}_").as_bytes())
-                            .to_string(),
-                        value: s.to_string(),
-                    });
-                }
-                _ => panic_str("Unsupported column structure"),
-            }
-        }
+        let new_rows = rows
+            .iter()
+            .map(|row| {
+                let new_row = row
+                    .as_object()
+                    .expect("Unsupported row structure, row  should be an object")
+                    .iter()
+                    .map(|(key, value)| {
+                        let new_row = RowCell::from_value(value.clone());
+                        (key.to_string(), new_row)
+                    })
+                    .collect();
+                new_row
+            })
+            .collect();
 
-        for rows in &rows {
-            match rows {
-                Value::Array(row) => {
-                    let mut new_row_cell: Vec<RowCell> = Vec::new();
-                    for (i, cell) in row.iter().enumerate() {
-                        match cell {
-                            Value::String(s) => {
-                                new_row_cell.push(RowCell {
-                                    uuid: Uuid::new_v5(
-                                        &Uuid::NAMESPACE_DNS,
-                                        format!("{name}_{s}_{i}").as_bytes(),
-                                    )
-                                    .to_string(),
-                                    value: s.to_string(),
-                                });
-                            }
-                            _ => panic_str("Invalid cell"),
-                        }
-                    }
+        let new_table = Registry::new(name, owner_id, new_columns, new_rows);
 
-                    new_rows.push(Row {
-                        uuid: Uuid::new_v5(&Uuid::NAMESPACE_DNS, format!("{name}_").as_bytes())
-                            .to_string(),
-                        cells: new_row_cell,
-                    });
-                }
-                _ => panic_str("Unsupported rows structure"),
-            }
-        }
-
-        let mut vec = Vec::new();
-
-        let new_table = Table::new(name, new_columns, new_rows);
-
-        vec.push(new_table.clone());
-
-        if !self.registries.contains_key(&owner_id) {
-            self.registries.insert(&owner_id, &vec);
-        } else {
-            self.registries.get(&owner_id).unwrap().push(new_table)
-        }
+        self.registries.push(new_table);
     }
 
-    pub fn get_all_registries(&self) -> Vec<Table> {
-        let mut vec = Vec::new();
-        for user in self.registries.iter() {
-            for t in user.1 {
-                vec.push(t.clone());
-            }
+    pub fn get_all_registries(&self) -> Vec<Registry> {
+        let mut registries = Vec::new();
+
+        for registry in &self.registries {
+            registries.push(registry.clone());
         }
-        vec
+
+        registries
     }
 }
 
-/*
- * The rest of this file holds the inline tests for the code above
- * Learn more about Rust tests: https://doc.rust-lang.org/book/ch11-01-writing-tests.html
- */
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -208,20 +107,42 @@ mod tests {
         // instantiate a contract variable with the counter at zero
         let mut contract = Contract {
             owner: alice(),
-            registries: TreeMap::new(b"t"),
+            registries: Vec::new(),
         };
 
-        let columns = json!(['a', 'b', 'c']);
-        let rows = json!([['1', '2', '3'], ['4', '5', '6']]);
+        let columns = vec![
+            json!( {
+                "value": "column1",
+                "type": "string",
+            }),
+            json!( {
+                "value": "column2",
+                "type": "number",
+            }),
+        ];
+
+        let row1 = json!({"date": {"value": "Fri Jul 01 2022"}, "number": {"value": 1}, "text": {"value": "Test"}});
+
+        let row2 = json!({"date": {"value": "Fri Jul 01 2022"}, "number": {"value": -1}, "text": {"value": "Test"}});
+
+        let row3 = json!({"date": {"value": "Fri Jul 01 2022"}, "number": {"value": 0.1}, "text": {"value": "Test"}});
+
         contract.new_registry(
             alice(),
-            vec![columns.clone()],
-            vec![rows.clone()],
             "testname".to_string(),
+            columns.clone(),
+            vec![row1.clone(), row2.clone()],
+        );
+
+        contract.new_registry(
+            alice(),
+            "testname".to_string(),
+            columns.clone(),
+            vec![row2.clone(), row1.clone(), row3.clone()],
         );
 
         let _result = contract.get_all_registries();
 
-        println!("{:?}", columns);
+        println!("{:#?}", _result);
     }
 }

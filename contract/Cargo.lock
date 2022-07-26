@@ -382,16 +382,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "greeter"
-version = "1.0.0"
-dependencies = [
- "near-sdk",
- "serde",
- "uint",
- "uuid",
-]
-
-[[package]]
 name = "hashbrown"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -863,6 +853,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a415a013dd7c5d4221382329a5a3482566da675737494935cbbbcdec04662f9d"
 dependencies = [
  "smallvec",
+]
+
+[[package]]
+name = "registry"
+version = "1.0.0"
+dependencies = [
+ "near-sdk",
+ "serde",
+ "uint",
+ "uuid",
 ]
 
 [[package]]
