@@ -1,11 +1,10 @@
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-
 use near_sdk::env::panic_str;
-use near_sdk::serde_json::{Number, Value};
+use near_sdk::serde_json::Value;
 use near_sdk::{near_bindgen, AccountId, PanicOnDefault};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
 use uuid::Uuid;
 
 #[near_bindgen]
@@ -35,6 +34,7 @@ impl HeadCell {
 
 #[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Clone, Debug)]
+#[serde(untagged)]
 enum CellValue {
     String(String),
     PosInt(u64),
@@ -109,7 +109,7 @@ impl RowCell {
 pub struct Registry {
     uuid: String,
     owner: AccountId,
-    name: String,
+    pub name: String,
     columns: Vec<HeadCell>,
     rows: Vec<HashMap<String, RowCell>>,
 }

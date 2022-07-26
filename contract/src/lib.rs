@@ -1,7 +1,9 @@
 mod registry;
+mod utils;
+mod views;
 
 use near_sdk::borsh::{self, BorshDeserialize, BorshSerialize};
-use near_sdk::env::state_exists;
+use near_sdk::env::{panic_str, state_exists};
 use near_sdk::serde_json::Value;
 use near_sdk::{near_bindgen, AccountId};
 
@@ -43,40 +45,33 @@ impl Contract {
         columns: Vec<Value>,
         rows: Vec<Value>,
     ) {
-        let new_columns = columns
+        if self.is_name_exist(&name) {
+            panic_str("Name already exists");
+        }
+        let columns = columns
             .iter()
             .map(|column| HeadCell::from_value(column.clone()))
             .collect();
 
-        let new_rows = rows
+        let rows = rows
             .iter()
             .map(|row| {
                 let new_row = row
                     .as_object()
-                    .expect("Unsupported row structure, row  should be an object")
+                    .expect("Unsupported row structure, row should be an object")
                     .iter()
                     .map(|(key, value)| {
-                        let new_row = RowCell::from_value(value.clone());
-                        (key.to_string(), new_row)
+                        let cell = RowCell::from_value(value.clone());
+                        (key.to_string(), cell)
                     })
                     .collect();
                 new_row
             })
             .collect();
 
-        let new_table = Registry::new(name, owner_id, new_columns, new_rows);
+        let new_table = Registry::new(name, owner_id, columns, rows);
 
         self.registries.push(new_table);
-    }
-
-    pub fn get_all_registries(&self) -> Vec<Registry> {
-        let mut registries = Vec::new();
-
-        for registry in &self.registries {
-            registries.push(registry.clone());
-        }
-
-        registries
     }
 }
 
@@ -136,7 +131,7 @@ mod tests {
 
         contract.new_registry(
             alice(),
-            "testname".to_string(),
+            "testname2".to_string(),
             columns.clone(),
             vec![row2.clone(), row1.clone(), row3.clone()],
         );
