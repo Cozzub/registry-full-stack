@@ -66,7 +66,7 @@ impl CellValue {
             Value::Bool(b) => CellValue::Boolean(b),
             Value::Null => CellValue::Null,
             _ => panic_str(
-                "Unsupported row cell structure, row cell should be an object with a value field",
+                "Unsupported row cell value, row cell value should be an one of the following types: string, number, boolean, null",
             ),
         }
     }
