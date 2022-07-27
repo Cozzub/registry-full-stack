@@ -1,3 +1,4 @@
+mod proposals;
 mod registry;
 mod utils;
 mod views;
@@ -15,6 +16,8 @@ use crate::registry::{HeadCell, Registry, RowCell};
 pub struct Contract {
     owner: AccountId,
     registries: Vec<Registry>,
+    // used for generating unique uuids
+    cells_counter: u64,
 }
 
 impl Default for Contract {
@@ -22,6 +25,7 @@ impl Default for Contract {
         Self {
             owner: "alice.near".parse().unwrap(),
             registries: Vec::new(),
+            cells_counter: 0,
         }
     }
 }
@@ -35,6 +39,7 @@ impl Contract {
         Self {
             owner: owner_id.clone(),
             registries: Vec::new(),
+            cells_counter: 0,
         }
     }
 
@@ -50,9 +55,12 @@ impl Contract {
         }
         let columns = columns
             .iter()
-            .map(|column| HeadCell::from_value(column.clone()))
+            .map(|column| {
+                let cell_number = self.cells_counter;
+                self.cells_counter += 1;
+                HeadCell::from_value(column.clone(), cell_number)
+            })
             .collect();
-
         let rows = rows
             .iter()
             .map(|row| {
@@ -61,7 +69,9 @@ impl Contract {
                     .expect("Unsupported row structure, row should be an object")
                     .iter()
                     .map(|(key, value)| {
-                        let cell = RowCell::from_value(value.clone());
+                        let cell_number = self.cells_counter;
+                        self.cells_counter += 1;
+                        let cell = RowCell::from_value(value.clone(), cell_number);
                         (key.to_string(), cell)
                     })
                     .collect();
@@ -103,6 +113,7 @@ mod tests {
         let mut contract = Contract {
             owner: alice(),
             registries: Vec::new(),
+            cells_counter: 0,
         };
 
         let columns = vec![
@@ -126,7 +137,7 @@ mod tests {
             alice(),
             "testname".to_string(),
             columns.clone(),
-            vec![row1.clone(), row2.clone()],
+            vec![row1.clone(), row2.clone(), row3.clone()],
         );
 
         contract.new_registry(
@@ -137,7 +148,9 @@ mod tests {
         );
 
         let _result = contract.get_all_registries();
+        let counter = contract.get_cells_count();
 
         println!("{:#?}", _result);
+        println!("{:#?}", counter);
     }
 }

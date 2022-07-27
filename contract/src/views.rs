@@ -11,4 +11,8 @@ impl Contract {
 
         registries
     }
+
+    pub fn get_cells_count(&self) -> u64 {
+        self.cells_counter
+    }
 }
